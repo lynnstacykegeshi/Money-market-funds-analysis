@@ -1,10 +1,14 @@
-rm(list = ls())
+#rm(list = ls())
 
 library(tidyr)
 library(dplyr)
 library(gmodels)
+library(ggplot2)
+library(stats)
+
 # Read in the data
 mmf_data <- read.csv("mmfdata.csv")
+View(mmf_data)
 
 #Structure
 str(mmf_data)
@@ -19,8 +23,16 @@ names(mmf_data) <- c("timestamp", "age", "gender", "occupation", "invested_befor
 #Check for NA's
 is.na(mmf_data)
 
+#Convert the "age group" column to factor
+mmf_data$age <- factor(mmf_data$age, levels = c("Under 18 years old",
+                                                "18-24 years old",
+                                                "25-34 years old",
+                                                "35-44 years old",
+                                                "45-54 years old",
+                                                "55 years old or older"))
+
 # Convert the 'gender' column to factor
-mmf_data$gender <- factor(mmf_data$gender, levels = c("Male","Female","Prefer not to say"))
+mmf_data$gender <- factor(mmf_data$gender, levels = c("Male","Female"))
 
 # Convert the 'occupation' column to factor
 mmf_data$occupation <- factor(mmf_data$occupation, levels = c("Employed (full-time)", "Employed (part-time)", "Self-employed", "Student", "Unemployed", "Retired") )
@@ -82,6 +94,8 @@ mmf_data$other_investments <- factor(mmf_data$other_investments, levels = c("Sto
 # Convert the 'recommendation' column to factor
 mmf_data$recommendation <- factor(mmf_data$recommendation, levels = c("Yes, because they offer a safe and stable investment opportunity with reasonable returns.", "Yes, but only as part of a diversified investment portfolio.", "No, because there are other investment options with better returns.", "No, because I have had negative experiences investing in money market funds.", "I don't know enough about money market funds to give a recommendation."))
 
+str(mmf_data)
+
 
 # Subset data to only include investors/non-investors in money market funds
 investors <- mmf_data %>% filter(invested_before == "Yes") %>% select(-willingness, -consideration, -prevent_investment, -helpful_information, -potential_benefits)
@@ -90,8 +104,8 @@ non_investors <- mmf_data %>% filter(invested_before == "No") %>% select(-motiva
 
 View(investors)
 dim(investors)
-View(non_investors)
 
+View(non_investors)
 str(investors)
 
 ######
@@ -109,6 +123,10 @@ non_investors_clean<-na.omit(non_investors)
 non_investors_clean
 dim(non_investors_clean)
 
+#Create a new data frame that binds investors clean and non_investors clean.
+mmf_new <- bind_rows(investors_clean, non_investors_clean)
+View(mmf_new)
+tail(mmf_new)
 
 library(ggplot2)
 
@@ -128,7 +146,7 @@ ggplot(data = gender_df, aes(x = gender, y = count, fill = gender)) +
   theme_minimal()
 
 # count the number of males and females
-hold_counts <- table(mmf_clean$hold_duration)
+hold_counts <- table(mmf_data$hold_duration)
 
 # create a data frame with gender and count columns
 hold_df <- data.frame(hold_duration = names(hold_counts), count = as.numeric(hold_counts))
@@ -184,4 +202,101 @@ ggplot(data = mmf_data, aes(x = occupation, fill = invested_before)) +
   labs(x = "Occupation", y = "Count") +
   scale_fill_discrete(name = "Invested Before", labels = c("No", "Yes")) +
   theme_classic()
+
+#####
+#Regression analysis
+
+##Age and the likelihood of investing in money market funds:
+lm(age ~ invested_before, data = mmf_new, family="binomial")
+
+##Occupation and the likelihood of investing in money market funds:
+lm(occupation ~ invested_before, data = mmf_new)
+
+##Gender and the likelihood of investing in money market funds:
+lm(gender ~ invested_before, data = mmf_new)
+
+genmot<-lm(gender ~ motivation, data = investors_clean)
+genmot
+plot(genmot$residuals)
+
+
+## Gender and the factors considered when choosing a money market fund
+### Fit a logistic regression model
+myglm <- glm(gender ~ invested_before, data = mmf_new, family = binomial)
+myglm
+
+###A logistic regression model to examine the relationship between the binary variable "Invested_before" (the response variable) and the predictor variables "Age" and "Gender" in your data frame. 
+age_gender_investedbefore <- glm(invested_before ~ age + gender, data = mmf_new, family = binomial)
+summary(age_gender_investedbefore)
+
+plot(age_gender_investedbefore$residuals)
+
+
+## Investigate the relationship between the duration of investing in money market funds and the occupation of the participants.
+inoc<- lm(investing_duration ~ occupation, data = mmf_new)
+inoc
+
+##
+# Multiple regression analysis
+lm(invested_before ~ other_investments, data = mmf_new)
+
+#####
+
+#Chi-square
+
+##Gender and the factors considered when choosing a money market fund
+gender_factors <- chisq.test(table(mmf_new$factors, mmf_new$gender)) 
+gender_factors
+
+## Compare responses of investors and non-investors to What do you think motivates young investors to invest in money market funds?
+chisq.test(mmf_data$motivation2, mmf_data$invested_before)
+
+# Perform chi-squared test between age and investment behavior
+age_vs_investment <- chisq.test(table(mmf_new$age, mmf_new$invested_before))
+age_vs_investment
+
+# Perform chi-squared test between gender and investment behavior
+gender_vs_investment <- chisq.test(table(mmf_new$gender, mmf_new$invested_before))
+gender_vs_investment
+
+# Perform chi-squared test between occupation and investment behavior
+occupation_vs_investment <-chisq.test(table(mmf_new$occupation, mmf_new$invested_before))
+occupation_vs_investment
+
+# Perform chi-squared test between age and duration of investment
+age_vs_duration <- chisq.test(table(investors_clean$age, investors_clean$investing_duration))
+age_vs_duration
+
+# Perform chi-squared test between gender and duration of investment
+gender_vs_duration <- chisq.test(table(investors_clean$gender, investors_clean$investing_duration))
+gender_vs_duration
+
+# Perform chi-squared test between occupation and duration of investment
+occupation_vs_duration <- chisq.test(table(investors_clean$occupation, investors_clean$investing_duration))
+occupation_vs_duration
+
+# Perform chi-squared test between age and factors considered when choosing a fund
+age_vs_factors <- chisq.test(table(investors_clean$age, investors_clean$factors))
+age_vs_factors
+
+# Perform chi-squared test between gender and factors considered when choosing a fund
+gender_vs_factors <- chisq.test(table(investors_clean$gender, investors_clean$factors))
+gender_vs_factors
+
+# Perform chi-squared test between occupation and factors considered when choosing a fund
+occupation_vs_factors <- chisq.test(table(investors_clean$occupation, investors_clean$factors))
+occupation_vs_factors
+
+
+#############
+#Factor Analysis
+
+##Conduct factor analysis to identify underlying factors that influence investment decisions
+library(psych)
+investors_clean %>%
+  select(investing_duration, motivation, factors) %>%
+  mutate(across(everything(), factor)) %>%
+  mutate(across(everything(), ~ as.numeric(as.factor(.)))) %>%
+  cor() %>%
+  psych::principal(factors = 3, rotate = "varimax")
 

@@ -153,12 +153,15 @@ n
 set.seed(123) # ensures reproducibility
 mmf_sample <- mmf_new[sample(1:278, 100, replace = FALSE), ]
 
-mmf_sample$age <- relevel(mmf_sample$age, ref = "18-24 years old")#we can change reference population
+mmf_sample$age <- relevel(mmf_sample$age, ref = "35-44 years old")#we can change reference population
 
 age_investedbefore<-glm(invested_before ~ age, data = mmf_sample, family = binomial)
 age_investedbefore
+
 summary(age_investedbefore)
 confint(age_investedbefore)
+
+CrossTable(mmf_sample$occupation, mmf_sample$invested_before)
 
 #Occupation
 mmf_sample$occupation <- relevel(mmf_sample$occupation, ref = "Employed (full-time)")#we can change reference population

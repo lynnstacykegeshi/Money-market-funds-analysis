@@ -1,10 +1,11 @@
-#rm(list = ls())
+rm(list = ls())
 
 library(tidyr)
 library(dplyr)
 library(gmodels)
 library(ggplot2)
 library(stats)
+library(nnet)
 
 # Read in the data
 mmf_data <- read.csv("mmfdata.csv")
@@ -142,8 +143,76 @@ ggplot(data = gender_df, aes(x = gender, y = count, fill = gender)) +
   ggtitle("Gender Count") +
   xlab("Gender") +
   ylab("Count") +
-  scale_fill_manual(values = c("pink", "lightblue","lightgreen")) +
+  scale_fill_manual(values = c("pink", "lightblue")) +
   theme_minimal()
+
+#Gender percentage
+mmf_data %>%
+  group_by(gender, invested_before) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count / sum(count) * 100) -> gender_summary
+
+ggplot(gender_summary, aes(x = gender, y = percent, fill = invested_before)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("#66c2a5", "#fc8d62"), 
+                    labels = c("Invested", "Not invested")) +
+  labs(x = "Gender", y = "Percentage", 
+       title = "Percentage of Women and Men who Invested in MMF")
+
+# Age groups percentage
+
+mmf_data %>%
+  group_by(age, invested_before) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count / sum(count) * 100) -> age_summary
+
+ggplot(age_summary, aes(x = age, y = percent, fill = invested_before)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("#66c2a5", "#fc8d62"), 
+                    labels = c("Invested", "Not invested")) +
+  labs(x = "Age Group", y = "Percentage", 
+       title = "Percentage of Age Groups who Invested in MMF")
+
+#Occupation
+# Define the occupation groups
+mmf_data %>%
+  group_by(occupation, invested_before) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count / sum(count) * 100) -> occ_summary
+
+ggplot(occ_summary, aes(x = occupation, y = percent, fill = invested_before)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("#66c2a5", "#fc8d62"), 
+                    labels = c("Invested", "Not invested")) +
+  labs(x = "Occupation", y = "Percentage", 
+       title = "Percentage of Occupations who Invested in MMF")
+
+# Distribution of how long people typically hold their money market fund investments
+## Create a box plot of the investment duration distribution
+investors$investing_duration <- as.numeric(investors$investing_duration)
+
+ggplot(investors, aes(x = investing_duration)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
+  labs(title = "Investment Duration Distribution",
+       x = "Investment Duration (years)",
+       y = "Count")
+
+# Motivation, stacked bar graph
+## Create a table of the counts of each motivation factor
+motivation_counts <- table(investors$motivation)
+
+# Convert the table to a data frame
+motivation_df <- data.frame(motivation = names(motivation_counts),
+                            Count = as.vector(motivation_counts))
+
+# Create a stacked bar chart of the motivation factors
+ggplot(motivation_df, aes(x = Count, y = motivation, fill = motivation)) +
+  geom_col() +
+  labs(title = "Motivation to Invest in Money Market Funds",
+       x = "Count",
+       y = "Motivation") +
+  theme(legend.position = "none")  # Hide the legend
+
 
 # count the number of males and females
 hold_counts <- table(mmf_data$hold_duration)
@@ -183,9 +252,13 @@ ggplot(data = hold_df, aes(x = hold_duration, y = count, fill = hold_duration)) 
   scale_fill_manual(values = c("pink", "lightblue", "lightgreen", "purple")) +
   theme_minimal()
 
-#CrossTable
+###########
+#CrossTable gender, invested before
 CrossTable(mmf_data$gender, mmf_data$invested_before)
 
+CrossTable(mmf_data$age, mmf_data$invested_before)
+
+CrossTable(mmf_data$occupation, mmf_data$invested_before)
 
 #cross
 # Subset the data to exclude "Prefer not to say" category
@@ -197,54 +270,81 @@ cross<-CrossTable(mmf_data_sub$gender, mmf_data_sub$invested_before)
 ###########
 
 #compare the distribution of investment decisions by occupation
+#fix this
 ggplot(data = mmf_data, aes(x = occupation, fill = invested_before)) +
   geom_bar() +
   labs(x = "Occupation", y = "Count") +
-  scale_fill_discrete(name = "Invested Before", labels = c("No", "Yes")) +
+  scale_fill_discrete(name = "Invested Before", labels = c("Yes", "No")) +
   theme_classic()
 
 #####
 #Regression analysis
+#logistic regression instead of linear regression since we are dealing with qualitative data, also work on interpretation as we cant use the same interpretation methods as linear regression.
+#In logistic regression, the liner score measures the propensity of the event, log odds
+#Prob of events= exp(Log odds for event)/1+exp(Log odds for event)
 
 ##Age and the likelihood of investing in money market funds:
-lm(age ~ invested_before, data = mmf_new, family="binomial")
+mmf_new$age <- relevel(mmf_new$age, ref = "18-24 years old")#we can change reference population
+
+age_investedbefore<-glm(invested_before ~ age, data = mmf_data, family = binomial)
+age_investedbefore
+summary(age_investedbefore)
+
+#***The results indicate that age is a significant predictor of invested_before, as indicated by the p-value of the age group "18-24 years old" (p < 0.001). This suggests that individuals in this age group are more likely to have invested before than the reference group.
+
+#***However, the other age groups (Under 18, 35-44, 45-54, and 55 or older) were not found to be significant predictors of invested_before, as indicated by their non-significant p-values (all p > 0.05). This suggests that there is no statistically significant difference in the likelihood of having invested before between these age groups and the reference group.
+
 
 ##Occupation and the likelihood of investing in money market funds:
-lm(occupation ~ invested_before, data = mmf_new)
+mmf_data$occupation <- relevel(mmf_data$occupation, ref = "Student")#we can change reference population
 
-##Gender and the likelihood of investing in money market funds:
-lm(gender ~ invested_before, data = mmf_new)
+occupation_investedbefore<-glm(invested_before ~ occupation, data = mmf_data, family=binomial, )
+occupation_investedbefore
+summary(occupation_investedbefore)
 
-genmot<-lm(gender ~ motivation, data = investors_clean)
-genmot
-plot(genmot$residuals)
+### Create a table of proportions
+prop.table(table(mmf_new$occupation, mmf_new$invested_before), margin = 1)
 
+##Logistic regression to analyze the relationship between Gender and the likelihood of investing in money market funds:
+genin<- glm(invested_before ~ gender, data = mmf_new, family = binomial)
 
-## Gender and the factors considered when choosing a money market fund
-### Fit a logistic regression model
-myglm <- glm(gender ~ invested_before, data = mmf_new, family = binomial)
-myglm
+summary(genin)
+
 
 ###A logistic regression model to examine the relationship between the binary variable "Invested_before" (the response variable) and the predictor variables "Age" and "Gender" in your data frame. 
-age_gender_investedbefore <- glm(invested_before ~ age + gender, data = mmf_new, family = binomial)
+age_gender_investedbefore <- glm(invested_before ~ gender + age + occupation, data = mmf_new, family = binomial)
 summary(age_gender_investedbefore)
 
 plot(age_gender_investedbefore$residuals)
 
 
 ## Investigate the relationship between the duration of investing in money market funds and the occupation of the participants.
-inoc<- lm(investing_duration ~ occupation, data = mmf_new)
+inoc<- multinom(investing_duration ~ occupation, data = investors_clean, family = multinom)
 inoc
 
-##
-# Multiple regression analysis
-lm(invested_before ~ other_investments, data = mmf_new)
+###A logistic regression model to examine the relationship between the age group and hold duration
+age_holdduration<-multinom(hold_duration ~ age, data = investors_clean, family=multinom)
+age_holdduration
+summary(age_holdduration)
+
+
+###A logistic regression model to examine the relationship between the age group, gender and occupation on performance of your money market fund investments?
+age_gen_perfomance<- multinom(performance_evaluation ~ age + gender +occupation, data = investors_clean, family = multinom)
+age_gen_perfomance
+summary(age_gen_perfomance)
+plot(age_gen_perfomance$residuals)
+
+###A logistic regression model to examine the relationship between the age group and the factors that have prevented you from investing in money market funds?
+age_prevent<-multinom(prevent_investment ~ age, data = non_investors_clean, family=multinom())
+age_prevent
+summary(age_prevent)
+plot(age_prevent$residuals)
 
 #####
-
+#*** not sure if its the correct use of code
 #Chi-square
 
-##Gender and the factors considered when choosing a money market fund
+##***Gender and the factors considered when choosing a money market fund
 gender_factors <- chisq.test(table(mmf_new$factors, mmf_new$gender)) 
 gender_factors
 
@@ -287,7 +387,7 @@ gender_vs_factors
 occupation_vs_factors <- chisq.test(table(investors_clean$occupation, investors_clean$factors))
 occupation_vs_factors
 
-
+#we can ignore fecator analysis
 #############
 #Factor Analysis
 

@@ -18,3 +18,10 @@ gender_vs_factors
 # Perform chi-squared test between occupation and factors considered when choosing a fund
 occupation_vs_factors <- chisq.test(table(investors_clean$occupation, investors_clean$factors))
 occupation_vs_factors
+
+##Logistic regression to analyze the relationship between Gender and the motivation for money market funds:
+
+genmot<-multinom(motivation2 ~ gender, data = mmf_new, family = multinom)
+genmot
+summary(genmot)
+plot(genmot$residuals)
